@@ -390,9 +390,11 @@ function App() {
     const ok = window.confirm('정말 모든 보스 컷 기록을 초기화할까요?\n(되돌릴 수 없습니다)')
     if (!ok) return
 
-    const isDouble = window.confirm(
-      '보스 2배 이벤트 모드로 초기화하시겠습니까?\n\n[확인] 보스 2배 이벤트 모드\n[취소] 일반 모드'
+    const useNormalMode = window.confirm(
+      '초기화 후 사용할 모드를 선택하세요.\n\n[확인] 일반 모드\n[취소] 보스 2배 이벤트 모드'
     )
+    const isDouble = !useNormalMode
+
 
     const useServerOpen = window.confirm(
       '서버 오픈 시각을 입력하여 첫 리젠 시간을 자동 계산하시겠습니까?\n\n[확인] 서버 오픈 시각 입력\n[취소] 기록 없이 초기화'
