@@ -274,6 +274,53 @@ function App() {
     (a, b) => a.adjustedNextMs - b.adjustedNextMs
   )
 
+  const nowMs = Date.now()
+
+  const readyList = sortedBossCutList.filter((x) => x.adjustedNextMs <= nowMs)     // 이미 리젠됨
+  const upcomingList = sortedBossCutList.filter((x) => x.adjustedNextMs > nowMs)  // 앞으로 예정
+
+  const SOON_MINUTES = 10
+  const SOON_MS = SOON_MINUTES * 60 * 1000
+
+  const getCardClasses = (item) => {
+    const now = Date.now()
+    const isReady = item.adjustedNextMs <= now
+    const diff = item.adjustedNextMs - now
+    const isSoon = !isReady && diff <= SOON_MS
+
+    // base
+    let cls =
+      "rounded border px-3 py-2 mb-2 transition-colors"
+
+    // 상태별 톤
+    if (isReady) {
+      // 리젠됨(과거): 앰버 톤 + 살짝 흐리게
+      cls += " bg-slate-900 border-slate-800"
+    } else {
+      // 예정(미래): 기본 slate
+      cls += " bg-slate-900 border-slate-800"
+    }
+
+    // 임계값 강조(Soon)
+    if (isSoon) {
+      // 테두리/배경/링을 조금 더 강하게
+      cls += " bg-slate-900 border-slate-800"
+    }
+
+    return cls
+  }
+
+  const getBadge = (item) => {
+    const now = Date.now()
+    const isReady = item.adjustedNextMs <= now
+    const diff = item.adjustedNextMs - now
+    const isSoon = !isReady && diff <= SOON_MS
+
+    if (isReady) return { text: "리젠됨", cls: "text-amber-300 border-amber-700/50 bg-amber-900/20" }
+    if (isSoon) return { text: `Soon`, cls: "text-amber-300 border-amber-700/50 bg-amber-900/20" }
+    return { text: "예정", cls: "text-slate-200 border-slate-600/50 bg-slate-800/40" }
+  }
+
   // HH:MM 수동 입력 → 어떤 시점의 컷인지(ms)로 변환
   const resolveManualCutMs = (boss, hourStr, minuteStr, nowMs) => {
     // 1) 숫자/범위 검증
@@ -473,7 +520,102 @@ function App() {
     return () => clearInterval(id)
   }, [])
 
+
+
+  const RenderCard = ({ item }) => {
+    const badge = getBadge(item)
+
+    return (
+      <div key={item.id} className={getCardClasses(item)}>
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-baseline gap-3">
+            <div className="font-medium flex items-center gap-2">
+              <span>{item.boss_name}</span>
+              {item.skippedCycles > 0 && (
+                <span className="text-xs text-amber-400">멍 {item.skippedCycles}회</span>
+              )}
+            </div>
+
+            <div className="text-sm text-slate-300 tabular-nums font-mono">
+              {new Date(item.adjustedNextMs).toLocaleTimeString()}
+              <span className="ml-1 text-slate-400">
+                ({getRemainingHuman(item.adjustedNextMs)})
+              </span>
+            </div>
+            { badge.text === "Soon" && <span className={`text-[11px] px-2 py-0.5 rounded-full border ${badge.cls}`}>
+                {badge.text}
+              </span> }
+            
+          </div>
+
+          {/* ✅ 버튼은 항상 보여주기 (네 요구사항 반영) */}
+          <div className="mt-2 flex flex-wrap gap-2 sm:mt-0 sm:justify-end">
+            <button
+              onClick={() => addBossCutNow(item.boss)}
+              className="rounded bg-sky-600 px-3 py-1 text-sm hover:bg-sky-500 text-white"
+            >
+              지금 컷
+            </button>
+            <button
+              onClick={() => openManualForBoss(item.boss_id)}
+              className="rounded border border-slate-600 px-3 py-1 text-sm hover:bg-slate-800"
+            >
+              시간 지정 컷
+            </button>
+          </div>
+        </div>
+
+        {/* 수동 입력 UI는 너 기존 코드 그대로 여기 붙이면 됨 */}
+        {openManualBossId === item.boss_id && (
+          <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-slate-800 pt-2">
+            <div className="flex items-center gap-1">
+              <input
+                type="number"
+                value={manualHour}
+                onChange={(e) => setManualHour(e.target.value)}
+                placeholder="시"
+                min="0"
+                max="23"
+                className="w-14 rounded bg-slate-800 px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-sky-500"
+              />
+              <span>:</span>
+              <input
+                type="number"
+                value={manualMinute}
+                onChange={(e) => setManualMinute(e.target.value)}
+                placeholder="분"
+                min="0"
+                max="59"
+                className="w-14 rounded bg-slate-800 px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-sky-500"
+              />
+            </div>
+            <button
+              onClick={() => handleManualCutApply(item.boss)}
+              className="rounded bg-emerald-600 px-3 py-1 text-sm hover:bg-emerald-500 text-white"
+            >
+              입력
+            </button>
+            <button
+              onClick={() => {
+                setOpenManualBossId(null)
+                setManualError('')
+              }}
+              className="rounded border border-slate-600 px-3 py-1 text-sm hover:bg-slate-800"
+            >
+              취소
+            </button>
+            {manualError && (
+              <div className="text-sm text-red-400">{manualError}</div>
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+
   return (
+
     <>
       <div className="bg-slate-900 text-slate-50 border-b border-slate-800 px-4 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -508,92 +650,38 @@ function App() {
             </p>
           )}
 
-          {sortedBossCutList.map((item) => (
-            <div
-              key={item.id}
-              className="rounded border border-slate-800 bg-slate-900 px-3 py-2 mb-2"
-            >
-              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-baseline gap-3">
-                  <div className="font-medium">
-                    {item.boss_name}
-                    {item.skippedCycles > 0 && (
-                      <span className="ml-2 text-xs text-amber-400">
-                        멍 {item.skippedCycles}회
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-sm text-slate-300 tabular-nums font-mono">
-                    {new Date(item.adjustedNextMs).toLocaleTimeString()}
-                    <span className="ml-1 text-slate-400">
-                      ({getRemainingHuman(item.adjustedNextMs)})
-                    </span>
-                  </div>
-                </div>
-
-                {/* 리젠 예정 시각이 현재보다 과거(또는 지금)일 때만 버튼 표시 */}
-                <div className="mt-2 flex flex-wrap gap-2 sm:mt-0 sm:justify-end">
-                  <button
-                    onClick={() => addBossCutNow(item.boss)}
-                    className="rounded bg-sky-600 px-3 py-1 text-sm hover:bg-sky-500 text-white"
-                  >
-                    지금 컷
-                  </button>
-                  <button
-                    onClick={() => openManualForBoss(item.boss_id)}
-                    className="rounded border border-slate-600 px-3 py-1 text-sm hover:bg-slate-800"
-                  >
-                    시간 지정 컷
-                  </button>
-                </div>
-
-              </div>
-
-              {openManualBossId === item.boss_id && (
-                <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-slate-800 pt-2">
-                  <div className="flex items-center gap-1">
-                    <input
-                      type="number"
-                      value={manualHour}
-                      onChange={(e) => setManualHour(e.target.value)}
-                      placeholder="시"
-                      min="0"
-                      max="23"
-                      className="w-14 rounded bg-slate-800 px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-sky-500"
-                    />
-                    <span>:</span>
-                    <input
-                      type="number"
-                      value={manualMinute}
-                      onChange={(e) => setManualMinute(e.target.value)}
-                      placeholder="분"
-                      min="0"
-                      max="59"
-                      className="w-14 rounded bg-slate-800 px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-sky-500"
-                    />
-                  </div>
-                  <button
-                    onClick={() => handleManualCutApply(item.boss)}
-                    className="rounded bg-emerald-600 px-3 py-1 text-sm hover:bg-emerald-500 text-white"
-                  >
-                    입력
-                  </button>
-                  <button
-                    onClick={() => {
-                      setOpenManualBossId(null)
-                      setManualError('')
-                    }}
-                    className="rounded border border-slate-600 px-3 py-1 text-sm hover:bg-slate-800"
-                  >
-                    취소
-                  </button>
-                  {manualError && (
-                    <div className="text-sm text-red-400">{manualError}</div>
-                  )}
-                </div>
-              )}
+          {/* 리젠됨 섹션 */}
+          <div className="mt-6">
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-slate-200">
+                리젠됨 ({readyList.length})
+              </h3>
             </div>
-          ))}
+
+            {readyList.length === 0 ? (
+              <div className="text-sm text-slate-500">리젠된 보스가 없습니다.</div>
+            ) : (
+              readyList.map((item) => <RenderCard key={item.id} item={item} />)
+            )}
+          </div>
+
+          {/* 예정 섹션 */}
+          <div className="mt-6">
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-slate-200">
+                예정 ({upcomingList.length})
+              </h3>
+            </div>
+
+            {upcomingList.length === 0 ? (
+              <div className="text-sm text-slate-500">예정된 보스가 없습니다.</div>
+            ) : (
+              upcomingList.map((item) => <RenderCard key={item.id} item={item} />)
+            )}
+          </div>
+
+
+
         </section>
 
         {noCutBossList.length > 0 && (
