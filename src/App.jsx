@@ -172,20 +172,37 @@ function App() {
   )
 
   // 남는 시간 계산 함수
+  // 남은 시간(미래) / 경과 시간(과거) 표시
   const getRemainingHuman = (nextgenTs) => {
-    const now = Date.now();
-    const diff = new Date(nextgenTs).getTime() - now;
+    const nowMs = Date.now()
+    const targetMs = new Date(nextgenTs).getTime()
+    const diffMs = targetMs - nowMs
 
-    if (diff <= 0) return "방금 리젠됨";
+    // 미래: 남은 시간
+    if (diffMs > 0) {
+      const sec = Math.floor(diffMs / 1000)
+      const min = Math.floor(sec / 60)
+      const hour = Math.floor(min / 60)
 
-    const sec = Math.floor(diff / 1000);
-    const min = Math.floor(sec / 60);
-    const hour = Math.floor(min / 60);
+      if (hour > 0) return `${hour}시간 ${min % 60}분 남음`
+      if (min > 0) return `${min}분 남음`
+      return `${sec}초 남음`
+    }
 
-    if (hour > 0) return `${hour}시간 ${min % 60}분 남음`;
-    if (min > 0) return `${min}분 남음`;
-    return `${sec}초 남음`;
-  };
+    // 과거/현재: 경과 시간 (diffMs <= 0)
+    const passedMs = Math.abs(diffMs) // 또는 -diffMs
+    const sec = Math.floor(passedMs / 1000)
+    const min = Math.floor(sec / 60)
+    const hour = Math.floor(min / 60)
+
+    // 방금(예: 5초 이내)은 더 깔끔하게
+    if (min < 3) return '방금 리젠됨'
+
+    if (hour > 0) return `${hour}시간 ${min % 60}분 전 리젠됨`
+    if (min > 0) return `${min}분 전 리젠됨`
+    return `이미 리젠됨 (${sec}초 경과)`
+  }
+
 
   // 멍 고려한 예상 시각 계산 함수
   const adjustNextGenWithGrace = (nextRaw, respawn_minutes, graceMinutes = 60) => {
@@ -513,22 +530,21 @@ function App() {
                 </div>
 
                 {/* 리젠 예정 시각이 현재보다 과거(또는 지금)일 때만 버튼 표시 */}
-                {item.adjustedNextMs <= Date.now() && (
-                  <div className="mt-2 flex flex-wrap gap-2 sm:mt-0 sm:justify-end">
-                    <button
-                      onClick={() => addBossCutNow(item.boss)}
-                      className="rounded bg-sky-600 px-3 py-1 text-sm hover:bg-sky-500 text-white"
-                    >
-                      지금 컷
-                    </button>
-                    <button
-                      onClick={() => openManualForBoss(item.boss_id)}
-                      className="rounded border border-slate-600 px-3 py-1 text-sm hover:bg-slate-800"
-                    >
-                      시간 지정 컷
-                    </button>
-                  </div>
-                )}
+                <div className="mt-2 flex flex-wrap gap-2 sm:mt-0 sm:justify-end">
+                  <button
+                    onClick={() => addBossCutNow(item.boss)}
+                    className="rounded bg-sky-600 px-3 py-1 text-sm hover:bg-sky-500 text-white"
+                  >
+                    지금 컷
+                  </button>
+                  <button
+                    onClick={() => openManualForBoss(item.boss_id)}
+                    className="rounded border border-slate-600 px-3 py-1 text-sm hover:bg-slate-800"
+                  >
+                    시간 지정 컷
+                  </button>
+                </div>
+
               </div>
 
               {openManualBossId === item.boss_id && (
