@@ -4,7 +4,7 @@ import { supabase } from './supabase'
 
 
 function App() {
-   // 0) 2배 이벤트 여부 세팅에서 불러오기
+  // 0) 2배 이벤트 여부 세팅에서 불러오기
 
   const fetchSettings = async () => {
     const { data, error } = await supabase
@@ -19,7 +19,7 @@ function App() {
     setIsDoubleEvent(data.is_double_event)
   }
 
-   // 1) 보스 목록 불러오기
+  // 1) 보스 목록 불러오기
   const fetchBossList = async () => {
     const { data, error } = await supabase
       .from('boss_list')
@@ -55,6 +55,59 @@ function App() {
     fetchSettings()
   }, [])
 
+  // 첫 리젠 입력
+
+  // A. 서버 오픈 시각을 기준으로 모든 보스의 첫 리젠 기록을 생성하는 함수
+  const addInitialCuts = async (serverOpenMs, isDouble) => {
+    if (boss_list.length === 0) {
+      alert('보스 목록을 불러오는 중입니다. 잠시 후 다시 시도해주세요.')
+      return { ok: false, error: 'boss_list_not_loaded' }
+    }
+    const cutsToInsert = boss_list.map((boss) => {
+      // 1. 서버 오픈 시각에 보스별 첫 리젠 시간(분)을 더합니다.
+      const firstRespawnMs = serverOpenMs + boss.first_respawn_mins * 60 * 1000;
+
+      // 2. 이 "첫 리젠 시각"이 마치 "이전 컷 시간"인 것처럼 가정하고,
+      // 다음 리젠 시간을 계산하는 기존 로직을 재활용합니다.
+      // (이 부분이 가장 핵심적인 설계입니다. 첫 리젠 시각은 next_gen_time으로 설정하고,
+      // cut_time은 next_gen_time - (respawn_minutes * [이벤트반영]) 으로 역산하여 저장합니다.)
+
+      const baseIntervalMs = boss.respawn_minutes * 60 * 1000
+      const intervalMs = baseIntervalMs * (isDouble ? 0.5 : 1)
+
+      // next_gen_time: 서버 오픈 후 첫 리젠 시각
+      const nextGenIso = new Date(firstRespawnMs).toISOString();
+
+      // cut_time: 첫 리젠 시각보다 리스폰 주기만큼 이전 시각 (실제 컷이 아닌, 계산의 기준점)
+      const cutMs = firstRespawnMs - intervalMs;
+      const cutIso = new Date(cutMs).toISOString();
+
+      return {
+        boss_id: boss.id,
+        boss_name: boss.name,
+        cut_time: cutIso,
+        next_gen_time: nextGenIso,
+      };
+    });
+
+    // ⭐ 여기에 콘솔 로그를 추가하여 데이터 확인
+    console.log("삽입할 데이터 배열:", cutsToInsert);
+
+    // Supabase에 일괄 삽입
+    const { data, error } = await supabase
+      .from('boss_cut_list')
+      .insert(cutsToInsert)
+      .select()
+
+    if (error) {
+      console.error('첫 리젠 기록 입력 에러:', error)
+      return { ok: false }
+    }
+
+    // 로컬 상태 업데이트를 위해 새로 추가된 데이터를 반환
+    return { ok: true, newData: data }
+  }
+
   // 3) 컷 입력 (Supabase에 insert)
 
   // base: 어떤 시각으로 컷했는지(ms)를 인자로 받는 공통 함수
@@ -63,11 +116,11 @@ function App() {
     const intervalMs = baseIntervalMs * (isDoubleEvent ? 0.5 : 1)
     const nextMs = cutMs + intervalMs
 
-  // DB에는 timestamptz → ISO string으로 저장
+    // DB에는 timestamptz → ISO string으로 저장
     const cutIso = new Date(cutMs).toISOString()
     const nextIso = new Date(nextMs).toISOString()
 
-    const { data, error} = await supabase
+    const { data, error } = await supabase
       .from('boss_cut_list')
       .insert([
         {
@@ -83,7 +136,7 @@ function App() {
       console.error('컷 입력 에러:', error)
       return
     }
-    
+
     // 방금 insert된 행 data[0]을 로컬 state에 추가
     setBossCutList((prev) => [...prev, data[0]])
   }
@@ -146,8 +199,8 @@ function App() {
       typeof nextRaw === 'string'
         ? new Date(nextRaw).getTime()
         : nextRaw instanceof Date
-        ? nextRaw.getTime()
-        : nextRaw
+          ? nextRaw.getTime()
+          : nextRaw
 
     // 1) 아직 밀 필요 없음
     if (now <= nextMs + graceMs) {
@@ -156,7 +209,7 @@ function App() {
         skippedCycles: 0,
       }
     }
-    
+
     const timePastGrace = now - (nextMs + graceMs)    // 2) grace 이후 얼마나 지났는지
     const skippedCycles = Math.floor(timePastGrace / intervalMs) + 1  // 3) 멍 싸이클 계산
     const adjustedNextMs = nextMs + skippedCycles * intervalMs   // 4) 최종 next
@@ -165,7 +218,7 @@ function App() {
       adjustedNextMs,
       skippedCycles,
     }
-    
+
   }
 
   const latestCutList = Object.values(latestByBossId)
@@ -278,7 +331,7 @@ function App() {
 
     return { ok: true, cutMs }
   }
- 
+
   const openManualForBoss = (bossId) => {
     if (openManualBossId === bossId) {
       // 이미 열려있으면 닫기
@@ -316,40 +369,78 @@ function App() {
   }
 
 
-
   const clearAllBossCutsWithMode = async () => {
-    const ok = window.confirm(
-      '정말 모든 보스 컷 기록을 초기화할까요?\n(되돌릴 수 없습니다)'
-    )
+    const ok = window.confirm('정말 모든 보스 컷 기록을 초기화할까요?\n(되돌릴 수 없습니다)')
     if (!ok) return
+
     const isDouble = window.confirm(
       '보스 2배 이벤트 모드로 초기화하시겠습니까?\n\n[확인] 보스 2배 이벤트 모드\n[취소] 일반 모드'
     )
-    // 1) 기록 삭제
-    const { error: delError } = await supabase
-      .from('boss_cut_list')
-      .delete()
-      .gt('id', 0)
+
+    const useServerOpen = window.confirm(
+      '서버 오픈 시각을 입력하여 첫 리젠 시간을 자동 계산하시겠습니까?\n\n[확인] 서버 오픈 시각 입력\n[취소] 기록 없이 초기화'
+    )
+
+    let serverOpenMs = null
+
+    if (useServerOpen) {
+      const openTimeStr = window.prompt('서버가 열린 시각을 HH:MM 형식으로 입력해주세요. (예: 10:00)')
+      if (!openTimeStr) return
+
+      const [hourStr, minuteStr] = openTimeStr.split(':')
+      const h = Number(hourStr)
+      const m = Number(minuteStr)
+      if (Number.isNaN(h) || Number.isNaN(m) || h < 0 || h > 23 || m < 0 || m > 59) {
+        alert('잘못된 시각 형식입니다. HH:MM 형식으로 다시 시도해주세요.')
+        return
+      }
+
+      const now = new Date()
+      const serverOpenTimeMs = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m, 0, 0).getTime()
+      serverOpenMs = serverOpenTimeMs > Date.now()
+        ? serverOpenTimeMs - 24 * 60 * 60 * 1000
+        : serverOpenTimeMs
+    }
+
+    // ✅ 1) 항상 먼저 삭제
+    const { error: delError } = await supabase.from('boss_cut_list').delete().gt('id', 0)
     if (delError) {
       console.error('전체 초기화 에러:', delError)
       alert('초기화에 실패했습니다.')
       return
     }
-    // 2) 설정 업데이트
+
+    // ✅ 2) 설정 업데이트
     const { error: setError } = await supabase
       .from('boss_cut_settings')
       .update({ is_double_event: isDouble })
       .eq('id', 1)
+
     if (setError) {
       console.error('settings 업데이트 에러:', setError)
       alert('설정 변경에 실패했습니다.')
       return
     }
-    setBossCutList([])
+
+    // ✅ 3) (옵션) 그 다음 insert
+    let initialCutsData = []
+    if (useServerOpen) {
+      const result = await addInitialCuts(serverOpenMs, isDouble) // <- 아래 참고
+      if (!result.ok) {
+        alert('첫 리젠 기록 생성에 실패했습니다. (DB 에러)')
+        return
+      }
+      initialCutsData = result.newData
+    }
+
+    await fetchBossCutList()
+    await fetchSettings()
     setIsDoubleEvent(isDouble)
   }
 
-  useEffect(()=>{
+
+
+  useEffect(() => {
     console.log("전체 보스 컷 목록", boss_cut_list)
     console.log("정렬된 보스 컷 목록", sortedBossCutList)
     console.log("미입력 보스 목록", noCutBossList)
@@ -564,7 +655,7 @@ function App() {
           </section>
         )}
       </main>
-    </> 
+    </>
 
 
 
