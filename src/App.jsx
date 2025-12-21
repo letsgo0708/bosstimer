@@ -1,6 +1,117 @@
-import { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect } from 'react'
 import './App.css'
 import { supabase } from './supabase'
+
+
+const RenderCard = React.memo(function RenderCard({
+  item,
+  openManualBossId,
+  manualHour,
+  manualMinute,
+  manualError,
+  setManualHour,
+  setManualMinute,
+  setOpenManualBossId,
+  setManualError,
+  handleManualCutApply,
+  addBossCutNow,
+  openManualForBoss,
+  getBadge,
+  getCardClasses,
+  getRemainingHuman,
+}) {
+  const badge = getBadge(item)
+
+  return (
+    <div className={getCardClasses(item)}>
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-baseline gap-3">
+          <div className="font-medium flex items-center gap-2">
+            <span>{item.boss_name}</span>
+            {item.skippedCycles > 0 && (
+              <span className="text-xs text-amber-400/85">멍 {item.skippedCycles}회</span>
+            )}
+          </div>
+
+          <div className="text-sm text-slate-300 tabular-nums font-mono">
+            {new Date(item.adjustedNextMs).toLocaleTimeString()}
+            <span className="ml-1 text-slate-400">
+              ({getRemainingHuman(item.adjustedNextMs)})
+            </span>
+          </div>
+
+          {badge.text === "Soon" && (
+            <span className={`text-[11px] px-2 py-0.5 rounded-full border ${badge.cls}`}>
+              {badge.text}
+            </span>
+          )}
+        </div>
+
+        <div className="mt-2 flex flex-wrap gap-2 sm:mt-0 sm:justify-end">
+          <button
+            onClick={() => addBossCutNow(item.boss)}
+            className="rounded bg-sky-600 px-3 py-1 text-sm hover:bg-sky-500 text-white"
+          >
+            지금 컷
+          </button>
+          <button
+            onClick={() => openManualForBoss(item.boss_id)}
+            className="rounded border border-slate-600 px-3 py-1 text-sm hover:bg-slate-800"
+          >
+            시간 지정 컷
+          </button>
+        </div>
+      </div>
+
+      {openManualBossId === item.boss_id && (
+        <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-slate-800 pt-2">
+          <div className="flex items-center gap-1">
+            <input
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              value={manualHour}
+              onChange={(e) => setManualHour(e.target.value.replace(/\D/g, '').slice(0, 2))}
+              placeholder="시"
+              className="w-14 rounded bg-slate-800 px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-sky-500"
+            />
+            <span>:</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              value={manualMinute}
+              onChange={(e) => setManualMinute(e.target.value.replace(/\D/g, '').slice(0, 2))}
+              placeholder="분"
+              className="w-14 rounded bg-slate-800 px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-sky-500"
+            />
+          </div>
+
+          <button
+            onClick={() => handleManualCutApply(item.boss)}
+            className="rounded bg-emerald-600 px-3 py-1 text-sm hover:bg-emerald-500 text-white"
+          >
+            입력
+          </button>
+
+          <button
+            onClick={() => {
+              setOpenManualBossId(null)
+              setManualError('')
+            }}
+            className="rounded border border-slate-600 px-3 py-1 text-sm hover:bg-slate-800"
+          >
+            취소
+          </button>
+
+          {manualError && (
+            <div className="text-sm text-red-400">{manualError}</div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+})
 
 
 function App() {
@@ -513,105 +624,19 @@ function App() {
   }, [boss_cut_list, boss_list])
 
   useEffect(() => {
-    // 30초(30,000ms)마다 tick 증가
+    // ✅ 수동 입력 중이면 tick 멈춤
+    if (openManualBossId !== null) return
+
     const id = setInterval(() => {
       setTick((t) => t + 1)
     }, 30 * 1000)
+
     return () => clearInterval(id)
-  }, [])
+  }, [openManualBossId])
 
 
 
-  const RenderCard = ({ item }) => {
-    const badge = getBadge(item)
 
-    return (
-      <div key={item.id} className={getCardClasses(item)}>
-        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-baseline gap-3">
-            <div className="font-medium flex items-center gap-2">
-              <span>{item.boss_name}</span>
-              {item.skippedCycles > 0 && (
-                <span className="text-xs text-amber-400">멍 {item.skippedCycles}회</span>
-              )}
-            </div>
-
-            <div className="text-sm text-slate-300 tabular-nums font-mono">
-              {new Date(item.adjustedNextMs).toLocaleTimeString()}
-              <span className="ml-1 text-slate-400">
-                ({getRemainingHuman(item.adjustedNextMs)})
-              </span>
-            </div>
-            { badge.text === "Soon" && <span className={`text-[11px] px-2 py-0.5 rounded-full border ${badge.cls}`}>
-                {badge.text}
-              </span> }
-            
-          </div>
-
-          {/* ✅ 버튼은 항상 보여주기 (네 요구사항 반영) */}
-          <div className="mt-2 flex flex-wrap gap-2 sm:mt-0 sm:justify-end">
-            <button
-              onClick={() => addBossCutNow(item.boss)}
-              className="rounded bg-sky-600 px-3 py-1 text-sm hover:bg-sky-500 text-white"
-            >
-              지금 컷
-            </button>
-            <button
-              onClick={() => openManualForBoss(item.boss_id)}
-              className="rounded border border-slate-600 px-3 py-1 text-sm hover:bg-slate-800"
-            >
-              시간 지정 컷
-            </button>
-          </div>
-        </div>
-
-        {/* 수동 입력 UI는 너 기존 코드 그대로 여기 붙이면 됨 */}
-        {openManualBossId === item.boss_id && (
-          <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-slate-800 pt-2">
-            <div className="flex items-center gap-1">
-              <input
-                type="number"
-                value={manualHour}
-                onChange={(e) => setManualHour(e.target.value)}
-                placeholder="시"
-                min="0"
-                max="23"
-                className="w-14 rounded bg-slate-800 px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-sky-500"
-              />
-              <span>:</span>
-              <input
-                type="number"
-                value={manualMinute}
-                onChange={(e) => setManualMinute(e.target.value)}
-                placeholder="분"
-                min="0"
-                max="59"
-                className="w-14 rounded bg-slate-800 px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-sky-500"
-              />
-            </div>
-            <button
-              onClick={() => handleManualCutApply(item.boss)}
-              className="rounded bg-emerald-600 px-3 py-1 text-sm hover:bg-emerald-500 text-white"
-            >
-              입력
-            </button>
-            <button
-              onClick={() => {
-                setOpenManualBossId(null)
-                setManualError('')
-              }}
-              className="rounded border border-slate-600 px-3 py-1 text-sm hover:bg-slate-800"
-            >
-              취소
-            </button>
-            {manualError && (
-              <div className="text-sm text-red-400">{manualError}</div>
-            )}
-          </div>
-        )}
-      </div>
-    )
-  }
 
 
   return (
@@ -661,7 +686,28 @@ function App() {
             {readyList.length === 0 ? (
               <div className="text-sm text-slate-500">리젠된 보스가 없습니다.</div>
             ) : (
-              readyList.map((item) => <RenderCard key={item.id} item={item} />)
+              readyList.map((item) => (
+                <RenderCard
+                  key={item.id}
+                  item={item}
+                  openManualBossId={openManualBossId}
+                  manualHour={manualHour}
+                  manualMinute={manualMinute}
+                  manualError={manualError}
+                  setManualHour={setManualHour}
+                  setManualMinute={setManualMinute}
+                  setOpenManualBossId={setOpenManualBossId}
+                  setManualError={setManualError}
+                  handleManualCutApply={handleManualCutApply}
+                  addBossCutNow={addBossCutNow}
+                  openManualForBoss={openManualForBoss}
+                  getBadge={getBadge}
+                  getCardClasses={getCardClasses}
+                  getRemainingHuman={getRemainingHuman}
+                />
+
+              ))
+
             )}
           </div>
 
@@ -676,7 +722,28 @@ function App() {
             {upcomingList.length === 0 ? (
               <div className="text-sm text-slate-500">예정된 보스가 없습니다.</div>
             ) : (
-              upcomingList.map((item) => <RenderCard key={item.id} item={item} />)
+              upcomingList.map((item) => (
+                <RenderCard
+                  key={item.id}
+                  item={item}
+                  openManualBossId={openManualBossId}
+                  manualHour={manualHour}
+                  manualMinute={manualMinute}
+                  manualError={manualError}
+                  setManualHour={setManualHour}
+                  setManualMinute={setManualMinute}
+                  setOpenManualBossId={setOpenManualBossId}
+                  setManualError={setManualError}
+                  handleManualCutApply={handleManualCutApply}
+                  addBossCutNow={addBossCutNow}
+                  openManualForBoss={openManualForBoss}
+                  getBadge={getBadge}
+                  getCardClasses={getCardClasses}
+                  getRemainingHuman={getRemainingHuman}
+                />
+
+              ))
+
             )}
           </div>
 
