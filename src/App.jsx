@@ -52,13 +52,13 @@ const RenderCard = React.memo(function RenderCard({
             onClick={() => addBossCutNow(item.boss)}
             className="rounded bg-sky-600 px-3 py-1 text-sm hover:bg-sky-500 text-white"
           >
-            지금 컷
+            컷
           </button>
           <button
             onClick={() => openManualForBoss(item.boss_id)}
             className="rounded border border-slate-600 px-3 py-1 text-sm hover:bg-slate-800"
           >
-            시간 지정 컷
+            시간 컷
           </button>
         </div>
       </div>
