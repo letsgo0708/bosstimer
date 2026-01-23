@@ -52,7 +52,7 @@ const RenderCard = React.memo(function RenderCard({
             onClick={() => addBossCutNow(item.boss)}
             className="rounded bg-sky-600 px-3 py-1 text-sm hover:bg-sky-500 text-white"
           >
-            컷
+            " "컷" "
           </button>
           <button
             onClick={() => openManualForBoss(item.boss_id)}
